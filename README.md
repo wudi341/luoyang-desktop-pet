@@ -8,7 +8,7 @@
 
 普通用户不需要安装 Python，也不需要打包。
 
-前往本仓库的 [Releases](../../releases/latest) 页面下载 `洛秧桌宠.exe`，双击即可运行，不需要安装 Python。
+前往本仓库的 [Releases](../../releases/latest) 页面下载 `Luoyang-Desktop-Pet-v1.0.0-Windows.zip`，解压后双击 `洛秧桌宠.exe` 即可运行，不需要安装 Python。
 
 首次运行后，程序会在 exe 同目录生成本地存档；AI 配置在保存接口设置后生成：
 
