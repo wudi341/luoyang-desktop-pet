@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 
 # Local runtime data
+luoyang_profile.json
+luoyang_ai_config.json
 naicha_mouse_profile.json
 naicha_mouse_ai_config.json
 
@@ -10,6 +12,12 @@ naicha_mouse_ai_config.json
 build/
 dist/
 *.spec
+/release/
+/luoyang/
+/IMG_5791/
+/accessories_original/
+/洛秧生图清单.md
+/洛秧剩余14张生图提示词.md
 tmp_*/
 transparency_previews/
 *_contact_sheet.png

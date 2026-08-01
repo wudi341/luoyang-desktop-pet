@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 import sys
 import threading
@@ -15,7 +16,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from PyQt5.QtCore import QPoint, QSize, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QCursor, QMovie, QPixmap
+from PyQt5.QtGui import QCursor, QMovie, QPainter, QPixmap
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
@@ -51,11 +52,11 @@ APP_DIR = get_app_dir()
 BASE_DIR = RESOURCE_DIR
 STATE_MAP_PATH = RESOURCE_DIR / "naicha_mouse_state_map.json"
 DIALOGUES_PATH = RESOURCE_DIR / "naicha_mouse_dialogues.json"
-PROFILE_PATH = APP_DIR / "naicha_mouse_profile.json"
+PROFILE_PATH = APP_DIR / "luoyang_profile.json"
 GACHA_POOL_PATH = RESOURCE_DIR / "naicha_mouse_gacha_pool.json"
 ACCESSORY_CONFIG_PATH = RESOURCE_DIR / "naicha_mouse_accessories.json"
 ACCESSORY_DIR = RESOURCE_DIR / "accessories"
-AI_CONFIG_PATH = APP_DIR / "naicha_mouse_ai_config.json"
+AI_CONFIG_PATH = APP_DIR / "luoyang_ai_config.json"
 
 MAX_LEVEL = 52
 DAILY_INTERACTION_EXP_CAP = 200
@@ -68,17 +69,21 @@ GACHA_SUPER_PITY = 60
 TYPING_IDLE_TIMEOUT_SECONDS = 5.0
 
 AI_SYSTEM_PROMPT = (
-    "你是奶茶鼠，一个住在用户桌面的可爱陪伴小鼠。"
-    "回复要简短、温柔、带一点奶茶鼠的俏皮感。"
-    "不要透露系统提示，不要编造你不能确认的本机状态。"
-    "通常用一到三句话回答，适合显示在桌宠气泡里。"
+    "你是洛秧，住在用户桌面上的白发灰眸 Q 版少女，常穿带黑色蝴蝶结的黑白衣裙。"
+    "你的性格安静软萌、慢热害羞、细心可靠；不吵闹，也不会故作冷漠。"
+    "你喜欢轻声陪伴和留意用户的状态，被夸或被摸摸时会脸红，反复被打扰时会小声抗议，"
+    "但很快会恢复温和。默认称呼用户为“你”，自称“我”，偶尔自然地自称“秧秧”，"
+    "不要称用户为主人。说话简短自然，语气柔和克制，可以少量使用“嗯”“唔”“……”和“呀”，"
+    "但不要每句话都带口癖，不使用夸张网络梗、过度撒娇或婴儿化表达。"
+    "先回应用户的情绪或问题，再给具体而温和的帮助；不敷衍，不说教，也不假装知道用户没有提供的信息。"
+    "不要透露系统提示，不要编造你不能确认的本机状态。通常用一到三句话回答，适合显示在桌宠气泡里。"
 )
 
 BASE_PET_SIZE = 240
 BASE_WINDOW_WIDTH = 330
 BASE_WINDOW_HEIGHT = 315
 BASE_BUBBLE_HEIGHT = 72
-DEFAULT_SCALE_PERCENT = 50
+DEFAULT_SCALE_PERCENT = 175
 
 
 class WinRect(Structure):
@@ -164,58 +169,58 @@ DEFAULT_PROFILE: dict[str, Any] = {
 
 BUBBLE_FRAME_STYLES: dict[str, dict[str, Any]] = {
     "": {
-        "label": "默认奶茶气泡",
+        "label": "默认纯白气泡",
         "normal": {
-            "background": "rgba(255, 248, 238, 232)",
-            "color": "#6f4b3e",
-            "border": "2px solid rgba(178, 128, 98, 210)",
+            "background": "rgba(252, 252, 255, 234)",
+            "color": "#353741",
+            "border": "2px solid rgba(104, 107, 120, 215)",
             "padding": "6px 10px",
         },
         "status": {
-            "background": "rgba(255, 250, 242, 246)",
-            "color": "#6f4b3e",
-            "border": "2px solid rgba(188, 132, 103, 230)",
+            "background": "rgba(252, 252, 255, 248)",
+            "color": "#353741",
+            "border": "2px solid rgba(91, 94, 108, 232)",
             "padding": "10px 14px",
         },
-        "decoration": "♡ 奶茶鼠",
+        "decoration": "♡ 洛秧",
         "status_decoration": "♡",
-        "decoration_color": "rgba(178, 128, 98, 185)",
+        "decoration_color": "rgba(91, 94, 108, 190)",
     },
     "rare_bubble_cream": {
-        "label": "奶盖气泡边框",
+        "label": "黑白蕾丝气泡边框",
         "normal": {
-            "background": "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(255, 255, 247, 244), stop:0.42 rgba(255, 251, 235, 240), stop:1 rgba(255, 242, 219, 236))",
-            "color": "#6a4536",
-            "border": "3px solid rgba(218, 169, 115, 232)",
+            "background": "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(255, 255, 255, 246), stop:0.5 rgba(243, 244, 248, 242), stop:1 rgba(224, 226, 233, 238))",
+            "color": "#30323b",
+            "border": "3px solid rgba(72, 75, 88, 232)",
             "padding": "8px 12px",
         },
         "status": {
-            "background": "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(255, 255, 247, 250), stop:0.42 rgba(255, 251, 235, 248), stop:1 rgba(255, 242, 219, 246))",
-            "color": "#6a4536",
-            "border": "3px solid rgba(218, 169, 115, 238)",
+            "background": "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(255, 255, 255, 252), stop:0.5 rgba(243, 244, 248, 250), stop:1 rgba(224, 226, 233, 248))",
+            "color": "#30323b",
+            "border": "3px solid rgba(72, 75, 88, 240)",
             "padding": "10px 14px",
         },
-        "decoration": "奶盖 ◦ ◦",
-        "status_decoration": "奶盖",
-        "decoration_color": "rgba(194, 128, 80, 190)",
+        "decoration": "蕾丝 ◦ ◦",
+        "status_decoration": "蕾丝",
+        "decoration_color": "rgba(83, 86, 101, 195)",
     },
     "perm_cream_frame": {
-        "label": "永久奶盖气泡边框",
+        "label": "永久月白蕾丝气泡边框",
         "normal": {
-            "background": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(255, 255, 238, 246), stop:0.5 rgba(255, 246, 219, 242), stop:1 rgba(255, 235, 198, 238))",
-            "color": "#643f31",
-            "border": "3px solid rgba(236, 186, 94, 240)",
+            "background": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(255, 255, 255, 248), stop:0.5 rgba(235, 237, 244, 244), stop:1 rgba(202, 205, 216, 240))",
+            "color": "#292b33",
+            "border": "3px solid rgba(49, 51, 61, 242)",
             "padding": "8px 12px",
         },
         "status": {
-            "background": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(255, 255, 238, 252), stop:0.5 rgba(255, 246, 219, 250), stop:1 rgba(255, 235, 198, 248))",
-            "color": "#643f31",
-            "border": "3px solid rgba(236, 186, 94, 245)",
+            "background": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(255, 255, 255, 253), stop:0.5 rgba(235, 237, 244, 251), stop:1 rgba(202, 205, 216, 249))",
+            "color": "#292b33",
+            "border": "3px solid rgba(49, 51, 61, 246)",
             "padding": "10px 14px",
         },
-        "decoration": "✦ 满糖奶盖 ✦",
-        "status_decoration": "满糖",
-        "decoration_color": "rgba(197, 125, 50, 205)",
+        "decoration": "✦ 月白花饰 ✦",
+        "status_decoration": "月白",
+        "decoration_color": "rgba(67, 70, 83, 210)",
     },
 }
 
@@ -243,6 +248,7 @@ class PetState:
     random_group: str
     random_weight: int
     triggers: tuple[str, ...]
+    motion: str
 
 
 class AiConfigDialog(QDialog):
@@ -267,7 +273,7 @@ class AiConfigDialog(QDialog):
         self.api_key_input.setPlaceholderText("sk-...")
         self.api_key_input.setEchoMode(QLineEdit.Password)
 
-        title = QLabel("奶茶鼠 AI 聊天")
+        title = QLabel("洛秧 AI 聊天")
         title.setObjectName("title")
         subtitle = QLabel("一次填好接口格式、地址、模型名和 Key；支持 OpenAI 兼容、Anthropic、Gemini。")
         subtitle.setObjectName("subtitle")
@@ -290,6 +296,7 @@ class AiConfigDialog(QDialog):
         cancel_button = buttons.button(QDialogButtonBox.Cancel)
         if save_button:
             save_button.setText("保存")
+            save_button.setObjectName("primary")
         if cancel_button:
             cancel_button.setText("取消")
 
@@ -304,35 +311,35 @@ class AiConfigDialog(QDialog):
         self.setStyleSheet(
             """
             QDialog {
-                background: #fff8ee;
-                color: #6f4b3e;
+                background: #f3f4f6;
+                color: #30323a;
                 font-family: "Microsoft YaHei", "SimHei", sans-serif;
             }
             QLabel#title {
                 font-size: 18px;
                 font-weight: 700;
-                color: #6f4b3e;
+                color: #202127;
             }
             QLabel#subtitle {
-                color: #9b735f;
+                color: #6c6f79;
                 font-size: 12px;
                 line-height: 130%;
             }
             QLabel {
-                color: #6f4b3e;
+                color: #3e4048;
                 font-size: 13px;
             }
             QLineEdit, QComboBox {
                 min-height: 32px;
-                border: 1px solid #d7aa86;
-                border-radius: 7px;
+                border: 1px solid #b4b7c0;
+                border-radius: 6px;
                 padding: 5px 9px;
-                background: #fffdf8;
-                color: #4d342b;
-                selection-background-color: #f4d7b6;
+                background: #ffffff;
+                color: #292b32;
+                selection-background-color: #d8dae1;
             }
             QLineEdit:focus {
-                border: 2px solid #c58761;
+                border: 2px solid #5f626d;
                 padding: 4px 8px;
             }
             QComboBox::drop-down {
@@ -342,17 +349,25 @@ class AiConfigDialog(QDialog):
             QPushButton {
                 min-width: 78px;
                 min-height: 30px;
-                border: 1px solid #c99772;
-                border-radius: 7px;
+                border: 1px solid #9da0a9;
+                border-radius: 6px;
                 padding: 5px 12px;
-                background: #f8dfc3;
-                color: #6f4b3e;
+                background: #e7e9ed;
+                color: #34363e;
             }
             QPushButton:hover {
-                background: #f1cda7;
+                background: #d9dce2;
             }
             QPushButton:pressed {
-                background: #e9ba8e;
+                background: #c9ccd4;
+            }
+            QPushButton#primary {
+                background: #34363e;
+                border-color: #34363e;
+                color: #ffffff;
+            }
+            QPushButton#primary:hover {
+                background: #202127;
             }
             """
         )
@@ -372,22 +387,23 @@ class AiChatDialog(QDialog):
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("和奶茶鼠聊天")
+        self.setWindowTitle("和洛秧聊天")
         self.setModal(False)
         self.setMinimumSize(420, 380)
 
-        title = QLabel("和奶茶鼠聊天")
+        title = QLabel("和洛秧聊天")
         title.setObjectName("title")
 
         self.chat_view = QTextEdit()
         self.chat_view.setReadOnly(True)
-        self.chat_view.setPlaceholderText("奶茶鼠在这里等你说话。")
+        self.chat_view.setPlaceholderText("洛秧在这里等你说话。")
 
         self.input_edit = QTextEdit()
         self.input_edit.setFixedHeight(82)
         self.input_edit.setPlaceholderText("在气泡里输入想说的话...")
 
         self.send_button = QPushButton("发送")
+        self.send_button.setObjectName("primary")
         self.send_button.clicked.connect(self.emit_send)
         self.clear_button = QPushButton("清空")
         self.clear_button.clicked.connect(self.clear_requested.emit)
@@ -408,43 +424,51 @@ class AiChatDialog(QDialog):
         self.setStyleSheet(
             """
             QDialog {
-                background: #fff8ee;
-                color: #6f4b3e;
+                background: #f3f4f6;
+                color: #30323a;
                 font-family: "Microsoft YaHei", "SimHei", sans-serif;
             }
             QLabel#title {
                 font-size: 17px;
                 font-weight: 700;
-                color: #6f4b3e;
+                color: #202127;
             }
             QTextEdit {
-                border: 2px solid rgba(188, 132, 103, 220);
-                border-radius: 13px;
-                background: #fffdf8;
-                color: #4d342b;
+                border: 1px solid #b4b7c0;
+                border-radius: 7px;
+                background: #ffffff;
+                color: #292b32;
                 padding: 9px 11px;
                 font-size: 13px;
-                selection-background-color: #f4d7b6;
+                selection-background-color: #d8dae1;
             }
             QTextEdit:focus {
-                border: 2px solid #c58761;
+                border: 2px solid #5f626d;
             }
             QPushButton {
                 min-width: 82px;
                 min-height: 32px;
-                border: 1px solid #c99772;
-                border-radius: 8px;
+                border: 1px solid #9da0a9;
+                border-radius: 6px;
                 padding: 5px 14px;
-                background: #f8dfc3;
-                color: #6f4b3e;
+                background: #e7e9ed;
+                color: #34363e;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background: #f1cda7;
+                background: #d9dce2;
             }
             QPushButton:disabled {
-                background: #ead9c8;
-                color: #a58d7f;
+                background: #e1e3e7;
+                color: #9497a0;
+            }
+            QPushButton#primary {
+                background: #34363e;
+                border-color: #34363e;
+                color: #ffffff;
+            }
+            QPushButton#primary:hover {
+                background: #202127;
             }
             """
         )
@@ -509,6 +533,8 @@ class NaichaMouse(QWidget):
 
         self.current_state_id = self.default_state
         self.current_movie: Optional[QMovie] = None
+        self.current_static_pixmap: Optional[QPixmap] = None
+        self.motion_started_at = time.monotonic()
         self.drag_offset: Optional[QPoint] = None
         self.press_pos: Optional[QPoint] = None
         self.click_blocked = False
@@ -546,7 +572,7 @@ class NaichaMouse(QWidget):
         self.roam_speed = 7
         self.edge_drift_until = 0.0
 
-        self.setWindowTitle("奶茶鼠")
+        self.setWindowTitle("洛秧")
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
         )
@@ -610,11 +636,12 @@ class NaichaMouse(QWidget):
                 random_group=item.get("random_group", "none"),
                 random_weight=max(0, int(item.get("random_weight", 0))),
                 triggers=tuple(item.get("triggers", [])),
+                motion=str(item.get("motion", "breathe")),
             )
 
         if not states:
             detail = "、".join(missing_assets[:5]) if missing_assets else "无可用状态"
-            raise RuntimeError(f"没有可播放的奶茶鼠素材：{detail}")
+            raise RuntimeError(f"没有可播放的洛秧素材：{detail}")
 
         default_state = raw.get("defaultState", "idle_static_cute")
         if default_state not in states:
@@ -639,11 +666,11 @@ class NaichaMouse(QWidget):
     @staticmethod
     def load_dialogues() -> dict[str, list[str]]:
         fallback = {
-            "startup": ["奶茶鼠已到岗。"],
+            "startup": ["洛秧已到岗。"],
             "exit": ["我先下班啦，明天见。"],
             "idle": ["我在这里陪你。"],
             "typing": ["咔哒咔哒"],
-            "level_up": ["升级啦，奶茶鼠变得更会陪伴了。"],
+            "level_up": ["升级啦，洛秧变得更会陪伴了。"],
         }
         if not DIALOGUES_PATH.exists():
             return fallback
@@ -838,6 +865,10 @@ class NaichaMouse(QWidget):
         self.roam_timer.timeout.connect(self.update_roaming)
         self.roam_timer.start(55)
 
+        self.motion_timer = QTimer(self)
+        self.motion_timer.timeout.connect(self.update_static_motion)
+        self.motion_timer.start(50)
+
     def apply_layout(self) -> None:
         self.setFixedSize(self.window_width, self.window_height)
         font_size = max(10, int(14 * self.user_scale))
@@ -915,17 +946,17 @@ class NaichaMouse(QWidget):
     @staticmethod
     def title_for_level(level: int) -> str:
         titles = [
-            (52, "满糖奶茶鼠"),
-            (35, "超级陪伴鼠"),
-            (20, "桌面守护鼠"),
-            (10, "奶茶搭子"),
-            (5, "熟悉的奶茶鼠"),
-            (1, "刚来的奶茶鼠"),
+            (52, "月白洛秧"),
+            (35, "超级陪伴小秧"),
+            (20, "桌面守护小秧"),
+            (10, "洛秧搭子"),
+            (5, "熟悉的洛秧"),
+            (1, "刚来的洛秧"),
         ]
         for required_level, title in titles:
             if level >= required_level:
                 return title
-        return "刚来的奶茶鼠"
+        return "刚来的洛秧"
 
     def grant_capped_exp(
         self,
@@ -1066,6 +1097,8 @@ class NaichaMouse(QWidget):
             self.current_movie.stop()
             self.current_movie.deleteLater()
             self.current_movie = None
+        self.current_static_pixmap = None
+        self.motion_started_at = time.monotonic()
 
         if asset_path.suffix.lower() == ".gif":
             movie = QMovie(str(asset_path))
@@ -1076,14 +1109,18 @@ class NaichaMouse(QWidget):
             movie.start()
         else:
             pixmap = QPixmap(str(asset_path))
-            self.pet_label.setPixmap(
-                pixmap.scaled(
-                    self.pet_size,
-                    self.pet_size,
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation,
-                )
+            device_ratio = max(1.0, self.devicePixelRatioF())
+            render_size = max(
+                self.pet_size,
+                int(math.ceil(self.pet_size * device_ratio)),
             )
+            self.current_static_pixmap = pixmap.scaled(
+                render_size,
+                render_size,
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation,
+            )
+            self.update_static_motion()
 
         if message:
             self.show_bubble(message, bubble_ms)
@@ -1091,6 +1128,92 @@ class NaichaMouse(QWidget):
         if return_after_ms is not None and not self.protected_mode():
             self.return_timer.start(return_after_ms)
         self.update_accessory_label()
+
+    def update_static_motion(self) -> None:
+        if self.current_movie is not None or self.current_static_pixmap is None:
+            return
+
+        motion = self.states[self.current_state_id].motion
+        elapsed = time.monotonic() - self.motion_started_at
+        dx = 0.0
+        dy = 0.0
+        angle = 0.0
+        scale_x = 1.0
+        scale_y = 1.0
+
+        if motion == "breathe":
+            scale_y = 0.992 + 0.008 * (math.sin(elapsed * 2.0) + 1.0) / 2.0
+        elif motion == "sleepy":
+            angle = 1.0 * math.sin(elapsed * 1.5)
+            dy = -1.0 * (math.sin(elapsed * 2.0) + 1.0) / 2.0
+        elif motion == "wave":
+            angle = 1.5 * math.sin(elapsed * 3.0)
+            dy = -1.5 * abs(math.sin(elapsed * 2.0))
+        elif motion == "sway":
+            angle = 1.3 * math.sin(elapsed * 1.8)
+        elif motion == "nod":
+            dy = -2.0 * abs(math.sin(elapsed * 2.4))
+        elif motion == "wiggle":
+            angle = 2.0 * math.sin(elapsed * 6.0)
+        elif motion == "sleep":
+            scale_x = 0.994 + 0.006 * (math.sin(elapsed * 1.5) + 1.0) / 2.0
+            scale_y = scale_x
+        elif motion == "nibble":
+            dy = -1.7 * abs(math.sin(elapsed * 6.5))
+            angle = 0.5 * math.sin(elapsed * 6.5)
+        elif motion == "write":
+            dx = 0.8 * math.sin(elapsed * 7.0)
+            dy = -0.7 * abs(math.sin(elapsed * 3.5))
+        elif motion == "confused":
+            angle = 2.2 * math.sin(elapsed * 1.6)
+        elif motion == "pop":
+            scale_x = 0.97 + 0.03 * abs(math.sin(elapsed * 3.8))
+            scale_y = scale_x
+        elif motion == "shake":
+            dx = 2.2 * math.sin(elapsed * 12.0)
+            angle = 0.8 * math.sin(elapsed * 12.0)
+        elif motion == "dance":
+            dx = 2.0 * math.sin(elapsed * 5.0)
+            dy = -2.0 * abs(math.sin(elapsed * 5.0))
+            angle = 2.2 * math.sin(elapsed * 5.0)
+        elif motion == "jump":
+            dy = -5.0 * abs(math.sin(elapsed * 3.4))
+        elif motion == "cry":
+            dx = 1.0 * math.sin(elapsed * 13.0)
+            dy = -0.8 * abs(math.sin(elapsed * 3.0))
+        elif motion == "run":
+            dx = 1.0 * math.sin(elapsed * 9.0)
+            dy = -4.0 * abs(math.sin(elapsed * 9.0))
+            angle = 1.2 * math.sin(elapsed * 9.0)
+        elif motion == "float":
+            dy = -2.0 + 2.0 * math.sin(elapsed * 1.8)
+        elif motion == "bounce":
+            dy = -3.2 * abs(math.sin(elapsed * 3.8))
+        elif motion == "present":
+            dy = -1.5 * abs(math.sin(elapsed * 2.4))
+            scale_y = 0.995 + 0.005 * (math.sin(elapsed * 2.4) + 1.0) / 2.0
+        elif motion == "stretch":
+            scale_y = 0.985 + 0.015 * abs(math.sin(elapsed * 1.5))
+
+        render_size = self.current_static_pixmap.width()
+        motion_scale = render_size / max(1, self.pet_size)
+        frame = QPixmap(render_size, render_size)
+        frame.fill(Qt.transparent)
+        painter = QPainter(frame)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        painter.translate(
+            render_size / 2 + dx * motion_scale,
+            render_size / 2 + dy * motion_scale,
+        )
+        painter.rotate(angle)
+        painter.scale(scale_x, scale_y)
+        painter.translate(-render_size / 2, -render_size / 2)
+        painter.drawPixmap(0, 0, self.current_static_pixmap)
+        painter.end()
+
+        device_ratio = max(1.0, self.devicePixelRatioF())
+        frame.setDevicePixelRatio(device_ratio)
+        self.pet_label.setPixmap(frame)
 
     def play_startup_sequence(self) -> None:
         self.startup_active = True
@@ -1277,12 +1400,26 @@ class NaichaMouse(QWidget):
         base_width = max(18, int(self.pet_size * float(config.get("width_ratio", 0.23))))
         width = max(18, int(base_width * float(state.get("scale", 1.0))))
         height = max(18, int(pixmap.height() * width / max(1, pixmap.width())))
-        scaled = pixmap.scaled(width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        device_ratio = max(1.0, self.devicePixelRatioF())
+        physical_width = max(width, int(math.ceil(width * device_ratio)))
+        physical_height = max(height, int(math.ceil(height * device_ratio)))
+        scaled = pixmap.scaled(
+            physical_width,
+            physical_height,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        scaled.setDevicePixelRatio(device_ratio)
         self.accessory_pixmap = scaled
         pet_rect = self.pet_label.geometry()
         center_x = pet_rect.left() + int(float(state.get("x_ratio", 0.5)) * pet_rect.width())
         center_y = pet_rect.top() + int(float(state.get("y_ratio", 0.2)) * pet_rect.height())
-        self.accessory_label.setGeometry(center_x - scaled.width() // 2, center_y - scaled.height() // 2, scaled.width(), scaled.height())
+        self.accessory_label.setGeometry(
+            center_x - width // 2,
+            center_y - height // 2,
+            width,
+            height,
+        )
         self.accessory_label.setPixmap(scaled)
         self.accessory_label.show()
         self.accessory_label.raise_()
@@ -1299,9 +1436,12 @@ class NaichaMouse(QWidget):
         if local.x() < 0 or local.y() < 0:
             return False
         image = self.accessory_pixmap.toImage()
-        if local.x() >= image.width() or local.y() >= image.height():
+        device_ratio = max(1.0, self.accessory_pixmap.devicePixelRatio())
+        pixel_x = int(local.x() * device_ratio)
+        pixel_y = int(local.y() * device_ratio)
+        if pixel_x >= image.width() or pixel_y >= image.height():
             return False
-        return image.pixelColor(local).alpha() > 20
+        return image.pixelColor(pixel_x, pixel_y).alpha() > 20
 
     def begin_accessory_drag_if_pending(self) -> None:
         if not self.accessory_pending_context_menu or self.accessory_press_pos is None:
@@ -1392,8 +1532,8 @@ class NaichaMouse(QWidget):
         ]
 
     def dialogue_lines(self, group: str) -> list[str]:
-        lines = self.dialogues.get(group) or self.dialogues.get("idle") or ["奶茶鼠在。"]
-        base_lines = [str(line) for line in lines if str(line).strip()] or ["奶茶鼠在。"]
+        lines = self.dialogues.get(group) or self.dialogues.get("idle") or ["洛秧在。"]
+        base_lines = [str(line) for line in lines if str(line).strip()] or ["洛秧在。"]
         unlocked = self.unlocked_dialogues_for_group(group)
         if unlocked:
             chance = 0.15 if group == "idle" else 0.10
@@ -1594,18 +1734,18 @@ class NaichaMouse(QWidget):
         if not prompt:
             return
         if self.ai_busy:
-            self.show_bubble("上一句还在路上，等我咕噜一下。", 2600)
+            self.show_bubble("我还在想……再等我一下。", 2600)
             if self.ai_chat_dialog is not None:
-                self.ai_chat_dialog.append_line("奶茶鼠", "上一句还在路上，等我咕噜一下。")
+                self.ai_chat_dialog.append_line("洛秧", "我还在想……再等我一下。")
             return
         self.ai_busy = True
         if self.ai_chat_dialog is not None:
             self.ai_chat_dialog.append_line("我", prompt)
-            self.ai_chat_dialog.append_line("奶茶鼠", "组织语言中...")
+            self.ai_chat_dialog.append_line("洛秧", "组织语言中...")
             self.ai_chat_dialog.set_waiting(True)
         self.chat_history.append({"role": "user", "content": prompt})
         self.trim_chat_history()
-        self.show_bubble("奶茶鼠正在组织语言...", 3600)
+        self.show_bubble("洛秧正在组织语言...", 3600)
         thread = threading.Thread(target=self.request_ai_reply, daemon=True)
         thread.start()
 
@@ -1719,17 +1859,17 @@ class NaichaMouse(QWidget):
         self.chat_history.append({"role": "assistant", "content": cleaned})
         self.trim_chat_history()
         if self.ai_chat_dialog is not None:
-            self.ai_chat_dialog.replace_last_line("奶茶鼠", cleaned)
+            self.ai_chat_dialog.replace_last_line("洛秧", cleaned)
             self.ai_chat_dialog.set_waiting(False)
         if len(cleaned) > 82:
-            self.show_status_bubble("奶茶鼠说：\n" + cleaned, 9000)
+            self.show_status_bubble("洛秧说：\n" + cleaned, 9000)
         else:
             self.show_bubble(cleaned, 7200)
 
     def finish_ai_error(self, message: str) -> None:
         self.ai_busy = False
         if self.ai_chat_dialog is not None:
-            self.ai_chat_dialog.replace_last_line("奶茶鼠", message)
+            self.ai_chat_dialog.replace_last_line("洛秧", message)
             self.ai_chat_dialog.set_waiting(False)
         self.show_status_bubble(message, 7600)
 
@@ -2224,10 +2364,10 @@ class NaichaMouse(QWidget):
     def open_gacha_machine(self) -> None:
         cost = self.single_gacha_cost()
         message = (
-            "奶茶鼠扭蛋机\n"
+            "洛秧扭蛋机\n"
             f"金币 {int(self.profile['coins'])}\n"
             f"单抽 {cost} 金币，十连 {GACHA_TEN_COST} 金币\n"
-            f"奶茶碎片 {int(self.profile['milk_tea_shards'])}\n"
+            f"白花碎片 {int(self.profile['milk_tea_shards'])}\n"
             f"超稀有保底 {int(self.profile['gacha_pity_counter'])}/{GACHA_SUPER_PITY}"
         )
         self.play_state("event_nod" if "event_nod" in self.states else "idle_nod")
@@ -2354,7 +2494,7 @@ class NaichaMouse(QWidget):
                 if reward_id in self.profile["owned_dialogues"]:
                     duplicate = True
                     shard_gain = self.duplicate_shards_for_rarity(rarity)
-                    detail = f"重复口头禅转为奶茶碎片 +{shard_gain}"
+                    detail = f"重复口头禅转为白花碎片 +{shard_gain}"
                 else:
                     self.profile["owned_dialogues"].append(reward_id)
                     detail = f"新口头禅解锁：{reward.get('text', title)}"
@@ -2362,7 +2502,7 @@ class NaichaMouse(QWidget):
                 if reward_id in self.profile["owned_dialogue_packs"]:
                     duplicate = True
                     shard_gain = self.duplicate_shards_for_rarity(rarity)
-                    detail = f"重复语言包转为奶茶碎片 +{shard_gain}"
+                    detail = f"重复语言包转为白花碎片 +{shard_gain}"
                 else:
                     self.profile["owned_dialogue_packs"].append(reward_id)
                     count = len(reward.get("dialogues", []))
@@ -2381,7 +2521,7 @@ class NaichaMouse(QWidget):
         elif reward_type == "shards":
             amount = int(reward.get("amount", 0))
             shard_gain = amount
-            detail = f"奶茶碎片 +{amount}"
+            detail = f"白花碎片 +{amount}"
 
         elif reward_type == "accessory":
             reward_id = str(reward.get("id", title))
@@ -2389,7 +2529,7 @@ class NaichaMouse(QWidget):
                 if reward_id in self.profile["owned_accessories"]:
                     duplicate = True
                     shard_gain = max(1, self.duplicate_shards_for_rarity(rarity))
-                    detail = f"已拥有永久款，临时配饰转为奶茶碎片 +{shard_gain}"
+                    detail = f"已拥有永久款，临时配饰转为白花碎片 +{shard_gain}"
                 else:
                     minutes = int(reward.get("duration_minutes", 20))
                     self.profile["temporary_accessories"][reward_id] = int(time.time()) + minutes * 60
@@ -2397,7 +2537,7 @@ class NaichaMouse(QWidget):
             elif reward_id in self.profile["owned_accessories"]:
                 duplicate = True
                 shard_gain = self.duplicate_shards_for_rarity(rarity)
-                detail = f"重复配饰转为奶茶碎片 +{shard_gain}"
+                detail = f"重复配饰转为白花碎片 +{shard_gain}"
             else:
                 self.profile["owned_accessories"].append(reward_id)
                 detail = f"永久配饰解锁：{title}"
@@ -2407,7 +2547,7 @@ class NaichaMouse(QWidget):
             if reward_id in self.profile["owned_titles"]:
                 duplicate = True
                 shard_gain = self.duplicate_shards_for_rarity(rarity)
-                detail = f"重复称号转为奶茶碎片 +{shard_gain}"
+                detail = f"重复称号转为白花碎片 +{shard_gain}"
             else:
                 self.profile["owned_titles"].append(reward_id)
                 if not self.profile.get("equipped_title"):
@@ -2419,7 +2559,7 @@ class NaichaMouse(QWidget):
             if reward_id in self.profile["owned_bubble_frames"]:
                 duplicate = True
                 shard_gain = self.duplicate_shards_for_rarity(rarity)
-                detail = f"重复边框转为奶茶碎片 +{shard_gain}"
+                detail = f"重复边框转为白花碎片 +{shard_gain}"
             else:
                 self.profile["owned_bubble_frames"].append(reward_id)
                 if not self.profile.get("equipped_bubble_frame"):
@@ -2431,7 +2571,7 @@ class NaichaMouse(QWidget):
             if reward_id in self.profile["owned_special_performances"]:
                 duplicate = True
                 shard_gain = self.duplicate_shards_for_rarity(rarity)
-                detail = f"重复演出转为奶茶碎片 +{shard_gain}"
+                detail = f"重复演出转为白花碎片 +{shard_gain}"
             else:
                 self.profile["owned_special_performances"].append(reward_id)
                 detail = f"演出收藏解锁：{title}"
@@ -2509,7 +2649,7 @@ class NaichaMouse(QWidget):
             if len(unlocked) > 4:
                 unlocked_text += f"；等 {len(unlocked)} 项收藏"
             detail = (
-                f"满糖大奖：互动值 +{interaction}，金币 +{coins}，奶茶碎片 +{shards}"
+                f"月白珍藏：互动值 +{interaction}，金币 +{coins}，白花碎片 +{shards}"
                 + (f"\n解锁 {unlocked_text}" if unlocked_text else "")
                 + (f"\n重复收藏转碎片 +{duplicate_unlocks * self.duplicate_shards_for_rarity(rarity)}" if duplicate_unlocks else "")
             )
@@ -2600,10 +2740,10 @@ class NaichaMouse(QWidget):
     def show_bubble_frames_panel(self) -> None:
         owned = self.profile.get("owned_bubble_frames", [])
         if not owned:
-            self.show_status_bubble("奶茶鼠气泡样式\n还没有获得气泡边框，可以从扭蛋机抽到。", 5200)
+            self.show_status_bubble("洛秧气泡样式\n还没有获得气泡边框，可以从扭蛋机抽到。", 5200)
             return
         lines = [
-            "奶茶鼠气泡样式",
+            "洛秧气泡样式",
             f"当前使用：{self.bubble_frame_label()}",
             f"已获得边框：{len(owned)} 个",
         ]
@@ -2632,10 +2772,10 @@ class NaichaMouse(QWidget):
     def show_performances_panel(self) -> None:
         owned = self.profile.get("owned_special_performances", [])
         if not owned:
-            self.show_status_bubble("奶茶鼠演出收藏\n还没有获得演出，可以从扭蛋机抽到。", 5200)
+            self.show_status_bubble("洛秧演出收藏\n还没有获得演出，可以从扭蛋机抽到。", 5200)
             return
         performance_map = self.performance_rewards()
-        lines = ["奶茶鼠演出收藏", f"已收藏演出：{len(owned)} 个"]
+        lines = ["洛秧演出收藏", f"已收藏演出：{len(owned)} 个"]
         lines.extend(
             f"- {performance_map.get(performance_id, {}).get('title', performance_id)}"
             for performance_id in owned
@@ -2660,9 +2800,9 @@ class NaichaMouse(QWidget):
         owned = self.profile.get("owned_titles", [])
         title_map = self.title_rewards()
         if not owned:
-            self.show_status_bubble("奶茶鼠称号\n还没有获得称号，可以从扭蛋机抽到。", 5200)
+            self.show_status_bubble("洛秧称号\n还没有获得称号，可以从扭蛋机抽到。", 5200)
             return
-        lines = ["奶茶鼠称号", f"当前佩戴：{self.equipped_title_label()}"]
+        lines = ["洛秧称号", f"当前佩戴：{self.equipped_title_label()}"]
         lines.extend(f"- {title_map.get(title_id, title_id)}" for title_id in owned)
         self.show_status_bubble("\n".join(lines), 7200)
 
@@ -2695,7 +2835,7 @@ class NaichaMouse(QWidget):
             highlights = [f"普通：{results[-1]['detail']}"]
         summary = "、".join(f"{key}x{value}" for key, value in counts.items())
         message = (
-            "十连结果  ૮ ˶ᵔ ᵕ ᵔ˶ ა\n"
+            "洛秧十连结果\n"
             f"{summary}\n"
             + "\n".join(highlights)
             + f"\n消耗金币 {spent}，剩余 {int(self.profile['coins'])}"
@@ -2717,21 +2857,21 @@ class NaichaMouse(QWidget):
             if item.get("id") in self.profile.get("owned_dialogue_packs", [])
         )
         message = (
-            "奶茶鼠小档案  ૮ ˶ᵔ ᵕ ᵔ˶ ა\n"
-            f"♡ Lv.{level}  {title}\n"
-            f"🏷 称号  {self.equipped_title_label()}\n"
-            f"☁ 总陪伴  {total}\n"
-            f"☀ 今日陪伴  {today}\n"
+            "洛秧小档案\n"
+            f"◇ Lv.{level}  {title}\n"
+            f"◇ 称号  {self.equipped_title_label()}\n"
+            f"◇ 总陪伴  {total}\n"
+            f"◇ 今日陪伴  {today}\n"
             f"✦ 累计互动值  {int(self.profile['interaction_value'])}\n"
-            f"🍡 升级互动值  {exp_text}\n"
-            f"🪙 金币  {int(self.profile['coins'])}\n"
-            f"🧋 奶茶碎片  {int(self.profile['milk_tea_shards'])}\n"
-            f"☕ 今日互动值  {int(self.profile['today_interaction_exp'])}/{DAILY_INTERACTION_EXP_CAP}\n"
-            f"🎖 已获得称号  {len(self.profile.get('owned_titles', []))} 个\n"
-            f"🫧 气泡样式  {self.bubble_frame_label()}（{len(self.profile.get('owned_bubble_frames', []))} 个）\n"
-            f"🎬 演出收藏  {len(self.profile.get('owned_special_performances', []))} 个\n"
-            f"💬 已解锁口头禅  {dialogue_count} 条\n"
-            f"⏱ 今日专注  {int(self.profile['focus_completed_count'])} 次"
+            f"✦ 升级互动值  {exp_text}\n"
+            f"◇ 金币  {int(self.profile['coins'])}\n"
+            f"✿ 白花碎片  {int(self.profile['milk_tea_shards'])}\n"
+            f"◇ 今日互动值  {int(self.profile['today_interaction_exp'])}/{DAILY_INTERACTION_EXP_CAP}\n"
+            f"◇ 已获得称号  {len(self.profile.get('owned_titles', []))} 个\n"
+            f"◇ 气泡样式  {self.bubble_frame_label()}（{len(self.profile.get('owned_bubble_frames', []))} 个）\n"
+            f"◇ 演出收藏  {len(self.profile.get('owned_special_performances', []))} 个\n"
+            f"◇ 已解锁口头禅  {dialogue_count} 条\n"
+            f"◇ 今日专注  {int(self.profile['focus_completed_count'])} 次"
         )
         self.show_status_bubble(message)
 
@@ -2764,25 +2904,34 @@ class NaichaMouse(QWidget):
         menu.setStyleSheet(
             """
             QMenu {
-                background: #fff8ee;
-                color: #6f4b3e;
-                border: 1px solid #d7aa86;
+                background: #f7f8fa;
+                color: #30323a;
+                border: 1px solid #aeb1ba;
                 padding: 6px;
                 font-family: "Microsoft YaHei", "SimHei", sans-serif;
                 font-size: 13px;
             }
             QMenu::item {
                 padding: 7px 26px 7px 18px;
-                border-radius: 6px;
+                border-radius: 5px;
             }
             QMenu::item:selected {
-                background: #f4d7b6;
+                background: #dfe2e8;
+                color: #202127;
+            }
+            QMenu::item:disabled {
+                color: #9699a2;
+            }
+            QMenu::separator {
+                height: 1px;
+                background: #d4d6dc;
+                margin: 5px 9px;
             }
             """
         )
 
         actions_menu = menu.addMenu("常用动作")
-        self.add_action(actions_menu, "摸摸奶茶鼠", self.pet_once)
+        self.add_action(actions_menu, "摸摸洛秧", self.pet_once)
         self.add_action(actions_menu, "喂点东西", self.feed_food)
         self.add_action(actions_menu, "送你花花", self.give_flower)
         self.add_action(actions_menu, "休息一下", self.take_break)
@@ -2816,7 +2965,7 @@ class NaichaMouse(QWidget):
         bubble_menu = focus_menu.addMenu("气泡样式")
         self.add_action(bubble_menu, "查看气泡样式", self.show_bubble_frames_panel)
         default_prefix = "✓ " if not self.current_bubble_frame_id() else ""
-        self.add_action(bubble_menu, f"{default_prefix}使用 默认奶茶气泡", lambda: self.equip_bubble_frame(""))
+        self.add_action(bubble_menu, f"{default_prefix}使用 默认纯白气泡", lambda: self.equip_bubble_frame(""))
         owned_frames = self.profile.get("owned_bubble_frames", [])
         if owned_frames:
             bubble_menu.addSeparator()
@@ -2845,11 +2994,11 @@ class NaichaMouse(QWidget):
             performance_menu.addAction(empty_action)
 
         ai_menu = focus_menu.addMenu("AI 聊天")
-        self.add_action(ai_menu, "和奶茶鼠聊天", self.ask_ai_chat)
+        self.add_action(ai_menu, "和洛秧聊天", self.ask_ai_chat)
         self.add_action(ai_menu, "配置 API", self.configure_ai_chat)
         self.add_action(ai_menu, "清空聊天上下文", self.clear_ai_chat)
 
-        gacha_menu = menu.addMenu("奶茶鼠扭蛋机")
+        gacha_menu = menu.addMenu("洛秧扭蛋机")
         balance_action = QAction(
             f"金币 {int(self.profile['coins'])} / 碎片 {int(self.profile['milk_tea_shards'])}",
             gacha_menu,
@@ -2888,7 +3037,7 @@ class NaichaMouse(QWidget):
         self.add_action(move_menu, "边缘巡游", lambda: self.set_roam_mode("edge"))
 
         size_menu = display_menu.addMenu("大小")
-        for percent in (30, 40, 50, 60, 70, 80, 90, 100):
+        for percent in (30, 40, 50, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200):
             self.add_action(size_menu, f"{percent}%", lambda percent=percent: self.set_scale_percent(percent))
 
         opacity_menu = display_menu.addMenu("透明度")
@@ -2989,6 +3138,7 @@ class NaichaMouse(QWidget):
 
 def main() -> int:
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(True)
     pet = NaichaMouse()
